@@ -61,10 +61,30 @@ test('buildServerCard', async (t) => {
     ]);
   });
 
-  await t.test('carries exactly the library document resource template', () => {
-    assert.equal(card.resources.length, 1);
-    assert.equal(card.resources[0]?.uriTemplate, 'library://doc/{source}/{id}');
-  });
+  await t.test(
+    "keeps resources and resourceTemplates as separate arrays — Smithery's release API 400s " +
+      'a `resources` entry with no string `uri` (a template has `uriTemplate` instead), so the ' +
+      'two must never be merged',
+    () => {
+      for (const resource of card.resources) {
+        assert.equal(
+          typeof resource.uri,
+          'string',
+          `resources[] entry ${resource.name} has no string uri`,
+        );
+      }
+    },
+  );
+
+  await t.test(
+    'carries exactly the library document resource template, and no concrete resources — ' +
+      'alexandria exposes only the one template',
+    () => {
+      assert.equal(card.resources.length, 0);
+      assert.equal(card.resourceTemplates.length, 1);
+      assert.equal(card.resourceTemplates[0]?.uriTemplate, 'library://doc/{source}/{id}');
+    },
+  );
 
   await t.test('is a fresh call each time — two invocations agree on shape', async () => {
     const again = await buildServerCard(FIXTURE_INPUTS);

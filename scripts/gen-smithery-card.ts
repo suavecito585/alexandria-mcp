@@ -19,8 +19,16 @@
 // schemas into a second, driftable source of truth, this script connects an in-process MCP
 // `Client` to a real `createServer()` instance over `InMemoryTransport` - the exact pattern
 // src/prompts.test.ts and src/resources.test.ts already use - and calls `listTools()` /
-// `listPrompts()` / `listResourceTemplates()`, so the card can never advertise a schema the live
-// server does not.
+// `listPrompts()` / `listResources()` / `listResourceTemplates()`, so the card can never advertise
+// a schema the live server does not.
+//
+// `resources` and `resourceTemplates` are kept as SEPARATE arrays in the card, mirroring the two
+// separate MCP list methods above, never merged into one `resources` array: Smithery's release API
+// (PUT /servers/{qn}/releases, `payload.serverCard`) rejects a `resources` entry that lacks a
+// string `uri` (a resource TEMPLATE has `uriTemplate` instead) with `400 {"error":"Invalid input:
+// expected string, received undefined"}` - verified live against alexandria's only resource, which
+// is a template. Moving the template into its own `resourceTemplates` array was accepted
+// (deployment 7bebc1bd, 11.0.0).
 //
 // `buildServerCard` is exported and side-effect-free aside from the in-memory client/server pair
 // it creates and tears down, so scripts/gen-smithery-card.test.ts can assert on its output shape.
@@ -53,9 +61,10 @@ export async function buildServerCard({ serverPkg, mcpServerJson }: ServerCardIn
   await server.server.connect(serverTransport);
   await client.connect(clientTransport);
   try {
-    const [{ tools }, { prompts }, { resourceTemplates }] = await Promise.all([
+    const [{ tools }, { prompts }, { resources }, { resourceTemplates }] = await Promise.all([
       client.listTools(),
       client.listPrompts(),
+      client.listResources(),
       client.listResourceTemplates(),
     ]);
     return {
@@ -68,7 +77,15 @@ export async function buildServerCard({ serverPkg, mcpServerJson }: ServerCardIn
       },
       tools,
       prompts,
-      resources: resourceTemplates,
+      // Smithery's release API rejects a `resources` entry that lacks a string `uri` (a resource
+      // TEMPLATE has `uriTemplate` instead) with a 400 "expected string, received undefined" —
+      // verified live against alexandria's own template-only resource. So concrete resources
+      // (from resources/list) and templates (from resources/templates/list) must stay in separate
+      // arrays; never merge them back into one.
+      resources: resources.filter(
+        (r): r is typeof r & { uri: string } => typeof r.uri === 'string',
+      ),
+      resourceTemplates,
     };
   } finally {
     await client.close();
@@ -86,7 +103,7 @@ async function main(): Promise<void> {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, `${JSON.stringify(serverCard, null, 2)}\n`);
   console.log(
-    `\n✓ wrote ${OUT} (${serverCard.tools.length} tools, ${serverCard.prompts.length} prompts, ${serverCard.resources.length} resources)`,
+    `\n✓ wrote ${OUT} (${serverCard.tools.length} tools, ${serverCard.prompts.length} prompts, ${serverCard.resources.length} resources, ${serverCard.resourceTemplates.length} resource templates)`,
   );
 }
 
