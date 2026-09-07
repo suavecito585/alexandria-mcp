@@ -27,6 +27,8 @@
     "eval:routing": "ALEXANDRIA_STATE_DB=:memory: node scripts/eval-routing.ts",
     "eval:answer": "ALEXANDRIA_STATE_DB=:memory: node scripts/eval-answer.ts",
     "docs": "node scripts/gen-docs.ts",
+    "gen:smithery-card": "node scripts/gen-smithery-card.ts",
+    "publish:smithery": "node scripts/publish-smithery.ts",
     "lint": "biome check .",
     "knip": "knip",
     "gate": "npm run typecheck && npm run build && npm test && npm run lint && npm run knip",
